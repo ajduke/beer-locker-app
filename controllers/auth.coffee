@@ -1,7 +1,9 @@
 passport = require('passport')
 BasicStrategy = require('passport-http').BasicStrategy
-User = require('../models/user')
+LocalStrategy = require('passport-local').Strategy
 BearerStrategy = require('passport-http-bearer').Strategy
+
+User = require('../models/user')
 mongoose= require('mongoose')
 Token = mongoose.model('tokenSchema')
 Client= require('../models/client')
@@ -44,7 +46,31 @@ passport.use new BearerStrategy((accessToken, callback) ->
 )
 
 
-# during initial auth, while fetching code 
+passport.use new LocalStrategy({
+    usernameField: 'user'
+    passwordField: 'pass'
+  } ,(username, password, callback) ->
+      User.findOne { username: username }, (err, user) ->
+        if err
+          return callback(err)
+        # No user found with that username
+        if !user
+          return callback(null, false)
+        # Make sure the password is correct
+        user.verifyPassword password, (err, isMatch) ->
+          if err
+            return callback(err)
+          # Password did not match
+          if !isMatch
+            return callback(null, false)
+          # Success
+          callback null, user
+        return
+      return
+)
+
+
+# during initial auth, while fetching code
 passport.use 'client-basic', new BasicStrategy((username, password, callback) ->
   Client.findOne { id: username }, (err, client) ->
     if err
@@ -57,7 +83,7 @@ passport.use 'client-basic', new BasicStrategy((username, password, callback) ->
 )
 
 
-exports.isAuthenticated = passport.authenticate(['basic', 'bearer'], { session : false })
+exports.isAuthenticated = passport.authenticate(['local', 'bearer'], { session : false })
 
 exports.isClientAuthenticated = passport.authenticate('client-basic',{session: false})
 
